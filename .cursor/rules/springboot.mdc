@@ -1,0 +1,143 @@
+---
+description: Estándares Java 25 y Spring Boot para reservation-backend
+alwaysApply: true
+---
+
+# Spring Boot — reservation-backend
+
+## Stack del proyecto
+
+- **Java**: 25 (`java.version` en `pom.xml`)
+- **Spring Boot**: 4.0.6
+- **Dependencias**: `spring-boot-starter-webmvc`, `spring-boot-starter-data-jpa`, PostgreSQL, `springdoc-openapi-starter-webmvc-ui` 3.0.2, DevTools
+- **Artifact**: `com.devsenior.cdiaz:reservation-backend`
+- **Paquete raíz**: `com.devsenior.cdiaz.reservation`
+
+## Estructura actual del proyecto
+
+```
+reservation-backend/
+├── pom.xml
+├── mvnw, mvnw.cmd
+├── .mvn/wrapper/
+├── src/main/java/com/devsenior/cdiaz/reservation/
+│   └── ReservationBackendApplication.java
+├── src/main/resources/
+│   └── application.properties          # spring.application.name=reservation-backend
+└── src/test/java/com/devsenior/cdiaz/reservation/
+    └── ReservationBackendApplicationTests.java
+```
+
+## Estructura de paquetes (convención del proyecto)
+
+Al añadir código, respetar esta organización bajo `com.devsenior.cdiaz.reservation`:
+
+| Paquete | Responsabilidad |
+|---------|------------------|
+| *(raíz)* | `ReservationBackendApplication` únicamente |
+| `controller` | REST controllers (`@RestController`) |
+| `service` | Lógica de negocio (`@Service`) |
+| `repository` | Acceso a datos JPA (`JpaRepository`) |
+| `entity` | Entidades JPA (`@Entity`) |
+| `dto` | Records de entrada/salida API |
+| `mapper` | Conversión entity ↔ DTO (clases `@Component` o métodos estáticos en util) |
+| `exception` | Excepciones de dominio y `@RestControllerAdvice` |
+| `config` | `@Configuration`, seguridad, OpenAPI, beans |
+
+Ejemplo de rutas:
+
+- `src/main/java/.../reservation/controller/ReservationController.java`
+- `src/main/java/.../reservation/dto/CreateReservationRequest.java`
+
+## Idioma y nomenclatura
+
+- **Clases, métodos, atributos, paquetes y constantes**: siempre en **inglés** (camelCase métodos/atributos, PascalCase clases, UPPER_SNAKE_CASE constantes).
+- Mensajes de error expuestos al cliente: inglés o clave i18n; comentarios Javadoc en inglés.
+- No mezclar español en identificadores (`crearReserva` → `createReservation`).
+
+## Java 25 — buenas prácticas
+
+- Preferir **records** para DTOs, value objects inmutables y proyecciones simples.
+- Usar **`var`** solo cuando el tipo sea obvio por el RHS.
+- Preferir **constructores o factories** claros; evitar setters en entidades salvo donde JPA lo exija.
+- Usar **Optional** en capa de servicio/repositorio, no en firmas de controllers (devolver 404 explícito).
+- **Pattern matching** y `switch` exhaustivo cuando simplifiquen ramas de estado/enums.
+- **Text blocks** para SQL nativo o strings multilínea en tests.
+- **Sealed types** solo si el dominio tiene jerarquías cerradas de estados/eventos.
+- Evitar APIs obsoletas; alinear con el compilador de Java 25 del proyecto.
+
+## DTOs — siempre `record`
+
+```java
+public record CreateReservationRequest(
+    @NotNull LocalDate date,
+    @NotBlank String customerName
+) {}
+```
+
+- Validación con **Jakarta Validation** (`@Valid` en el controller).
+- Records de respuesta sin lógica de negocio; no exponer entidades JPA en la API.
+- Para actualizaciones parciales, DTO dedicado (`UpdateReservationRequest`) o record con campos opcionales documentados.
+
+## Javadoc obligatorio
+
+- **Todo método público** (clases, interfaces, servicios, controllers, repositorios custom) debe tener Javadoc actualizado.
+- Incluir: propósito, `@param`, `@return`, `@throws` cuando aplique.
+- Los **records** documentan el record y, si hace falta, componentes no obvios.
+- Mantener Javadoc sincronizado al cambiar firmas o comportamiento.
+
+```java
+/**
+ * Creates a reservation for the given customer and date.
+ *
+ * @param request validated reservation data
+ * @return the created reservation representation
+ * @throws ReservationConflictException if the slot is already taken
+ */
+public ReservationResponse createReservation(CreateReservationRequest request) { ... }
+```
+
+## Spring Boot — capas y REST
+
+- **Controller**: delgado; delega en `service`; anotaciones HTTP correctas; códigos de estado adecuados (`201` create, `204` delete sin cuerpo).
+- **Service**: `@Transactional` en escrituras; reglas de negocio aquí, no en controllers ni repositories.
+- **Repository**: interfaces `JpaRepository`; queries derivadas o `@Query` con nombres claros.
+- **Entity**: `@Entity`, relaciones lazy por defecto; equals/hashCode conscientes de JPA.
+- Inyección por **constructor** (`@RequiredArgsConstructor` de Lombok solo si el equipo lo adopta; si no, constructor explícito).
+- Configuración en `application.properties` / perfiles (`application-dev.properties`); sin secretos en el repo.
+
+## Manejo de errores
+
+- Excepciones de dominio en `exception` con mensajes claros.
+- `@RestControllerAdvice` + `@ExceptionHandler` para respuestas JSON uniformes (status, message, timestamp).
+- No capturar `Exception` genérica sin re-lanzar o mapear.
+
+## API y documentación OpenAPI
+
+- Usar **springdoc** ya incluido; anotar controllers con `@Tag`, operaciones con `@Operation` cuando aporte valor.
+- Versionar rutas si el equipo lo define (p. ej. `/api/v1/reservations`).
+- Validar entrada; no confiar en validación solo en el cliente.
+
+## Tests
+
+- Tests de contexto en `src/test/java/.../reservation/`.
+- Tests de servicio con mocks; tests de integración con `@SpringBootTest` + Testcontainers/BD de test si se añade.
+- Nombres descriptivos en inglés: `shouldReturn404WhenReservationNotFound`.
+
+## Qué evitar
+
+- Lógica de negocio en controllers o entities.
+- Exponer entidades JPA directamente en JSON.
+- DTOs como clases mutables con getters/setters si un `record` basta.
+- Métodos públicos sin Javadoc.
+- Identificadores en español.
+- `System.out.println` en producción; usar logging (`@Slf4j` o `Logger`).
+
+## Checklist al generar código nuevo
+
+1. ¿Paquete correcto según la tabla de estructura?
+2. ¿Nombres en inglés?
+3. ¿DTO como `record` con validación?
+4. ¿Javadoc en todos los métodos públicos?
+5. ¿Capa correcta (controller → service → repository)?
+6. ¿Manejo de errores y status HTTP coherentes?
