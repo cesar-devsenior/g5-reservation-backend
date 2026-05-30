@@ -3,9 +3,13 @@ package com.devsenior.cdiaz.reservation.exception;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
 /**
  * Thrown when a reservation cannot be created because the date and time slot is already taken.
  */
+@ResponseStatus(HttpStatus.CONFLICT)
 public class ReservationConflictException extends ReservationBusinessException {
 
     /**

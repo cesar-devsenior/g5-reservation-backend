@@ -1,5 +1,8 @@
 package com.devsenior.cdiaz.reservation.service;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,5 +76,11 @@ public class ReservationService {
         entity.setStatus(ReservationStatus.CANCELLED);
         var saved = reservationRepository.save(entity);
         return reservationMapper.toResponse(saved);
+    }
+
+    public List<ReservationResponse> getAllReservations() {
+        return reservationRepository.findAll().stream()
+                .map(reservationMapper::toResponse)
+                .toList();
     }
 }
